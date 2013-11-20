@@ -12,14 +12,21 @@ namespace rx
         static void Main(string[] args)
         {
             var subject = new Subject<string>();
-            using (subject.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s), () => Console.WriteLine("Done"))))
+            using (subject.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s), 
+                () => Console.WriteLine("Done"),
+                e => Console.WriteLine(e))))
             {
                 var wc = new WebClient();
                 var task = wc.DownloadStringTaskAsync("http://www.googleasdasdsad.com/robots.txt");
                 task.ContinueWith(t =>
                 {
-                    subject.OnNext(t.Result);
-                    subject.OnCompleted();
+                    if (t.IsFaulted)
+                        subject.OnError(t.Exception);
+                    else
+                    {
+                        subject.OnNext(t.Result);
+                        subject.OnCompleted();
+                    }
                 });
 
                 // Wait for the async call
@@ -32,11 +39,13 @@ namespace rx
     {
         private readonly Action<T> onNext;
         private readonly Action onCompleted;
+        private readonly Action<Exception> onError;
 
-        public AnonymousBobserver(Action<T> onNext, Action onCompleted)
+        public AnonymousBobserver(Action<T> onNext, Action onCompleted, Action<Exception> onError)
         {
             this.onNext = onNext;
             this.onCompleted = onCompleted;
+            this.onError = onError;
         }
 
         public void OnNext(T result)
@@ -47,6 +56,11 @@ namespace rx
         public void OnCompleted()
         {
             onCompleted();
+        }
+
+        public void OnError(Exception exception)
+        {
+            onError(exception);
         }
     }
 
@@ -76,11 +90,20 @@ namespace rx
                 observer.OnCompleted();
             }
         }
+
+        public void OnError(Exception exception)
+        {
+            foreach (var observer in observers)
+            {
+                observer.OnError(exception);
+            }
+        }
     }
 
     public interface IBobserver<T>
     {
         void OnNext(T result);
         void OnCompleted();
+        void OnError(Exception exception);
     }
 }
