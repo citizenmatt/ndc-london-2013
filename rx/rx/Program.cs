@@ -36,9 +36,21 @@ namespace rx
 
     public class Bobservable
     {
-        public static IBobservable<T> FromTask<T>()
+        public static IBobservable<T> FromTask<T>(Func<Task<T>> taskCreator)
         {
-            return new AnonymousBobservable<T>();
+            return new AnonymousBobservable<T>(bobserver =>
+            {
+                taskCreator().ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                        bobserver.OnError(t.Exception);
+                    else
+                    {
+                        bobserver.OnNext(t.Result);
+                        bobserver.OnCompleted();
+                    }
+                });
+            });
         }
     }
 
