@@ -41,6 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AnonymousBobservable.cs" />
     <Compile Include="AnonymousBobserver.cs" />
     <Compile Include="Disposable.cs" />
     <Compile Include="ISubject.cs" />
