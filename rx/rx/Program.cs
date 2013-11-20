@@ -30,9 +30,9 @@ namespace rx
 
     public class Subject<T>
     {
-        private readonly IList<Action<T>> observers = new List<Action<T>>();
+        private readonly IList<IBobserver<T>> observers = new List<IBobserver<T>>();
 
-        public IDisposable Subscribe(Action<T> observer)
+        public IDisposable Subscribe(IBobserver<T> observer)
         {
             observers.Add(observer);
 
@@ -43,7 +43,7 @@ namespace rx
         {
             foreach (var observer in observers)
             {
-                observer(result);
+                observer.OnNext(result);
             }
         }
 
@@ -54,5 +54,11 @@ namespace rx
                 observer.OnCompleted();
             }
         }
+    }
+
+    public interface IBobserver<T>
+    {
+        void OnNext(T result);
+        void OnCompleted();
     }
 }
