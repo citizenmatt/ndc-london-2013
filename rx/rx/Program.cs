@@ -47,6 +47,27 @@ namespace rx
                 return new Disposable(() => { unsubscribed = true; });
             });
         }
+
+        public static IBobservable<T> Return<T>(T value)
+        {
+            return new AnonymousBobservable<T>(bobserver =>
+            {
+                bobserver.OnNext(value);
+                bobserver.OnCompleted();
+
+                return new Disposable(() => {});
+            });
+        }
+
+        public static IBobservable<T> Throws<T>(Exception exception)
+        {
+            return new AnonymousBobservable<T>(bobserver =>
+            {
+                bobserver.OnError(exception);
+
+                return new Disposable(() => { });
+            });
+        }
     }
 
     public class AnonymousBobservable<T> : IBobservable<T>
