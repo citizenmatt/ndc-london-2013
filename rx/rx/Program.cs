@@ -24,9 +24,26 @@ namespace rx
     {
         private readonly IList<Action<T>> observers = new List<Action<T>>();
 
-        public void Subscribe(Action<T> observer)
+        public IDisposable Subscribe(Action<T> observer)
         {
             observers.Add(observer);
+
+            return new Disposable(() => observers.Remove(observer));
+        }
+    }
+
+    public class Disposable : IDisposable
+    {
+        private readonly Action action;
+
+        public Disposable(Action action)
+        {
+            this.action = action;
+        }
+
+        public void Dispose()
+        {
+            action();
         }
     }
 }
