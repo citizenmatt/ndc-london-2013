@@ -35,9 +35,13 @@ namespace rx
         }
     }
 
-    public interface ISubject<T> : IBobserver<T>
+    public interface IBobservable<T>
     {
         IDisposable Subscribe(IBobserver<T> observer);
+    }
+
+    public interface ISubject<T> : IBobserver<T>, IBobservable<T>
+    {
     }
 
     public class Subject<T> : ISubject<T>
