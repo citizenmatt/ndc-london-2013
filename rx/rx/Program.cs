@@ -28,8 +28,13 @@ namespace rx
         {
             return new AnonymousBobservable<T>(bobserver =>
             {
+                var unsubscribed = false;
+
                 taskCreator().ContinueWith(t =>
                 {
+                    if (unsubscribed)
+                        return;
+
                     if (t.IsFaulted)
                         bobserver.OnError(t.Exception);
                     else
@@ -39,7 +44,7 @@ namespace rx
                     }
                 });
 
-                return new Disposable(() => { });
+                return new Disposable(() => { unsubscribed = true; });
             });
         }
     }
