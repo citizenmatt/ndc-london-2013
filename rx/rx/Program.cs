@@ -16,7 +16,11 @@ namespace rx
             //var subscription = observable.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s),
             //    () => Console.WriteLine("Done"), exception => Console.WriteLine(exception)));
 
-            var observable = Bobservable.Timer(TimeSpan.FromSeconds(1)).Where(l => l % 2 == 0).Select(l => l * 10).Select(l => l.ToString() + " ticks");
+            //var observable = Bobservable.Timer(TimeSpan.FromSeconds(1)).Where(l => l % 2 == 0).Select(l => l * 10).Select(l => l.ToString() + " ticks");
+
+            var observable = from t in Bobservable.Timer(TimeSpan.FromSeconds(1))
+                where t%2 == 0
+                select (t*10).ToString();
             var subscription = observable.Subscribe(new AnonymousBobserver<string>(l => Console.WriteLine(l), () => Console.WriteLine("Done"),
                 e => Console.WriteLine(e)));
 
