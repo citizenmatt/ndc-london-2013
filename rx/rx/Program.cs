@@ -16,7 +16,7 @@ namespace rx
             {
                 var wc = new WebClient();
                 var task = wc.DownloadStringTaskAsync("http://www.google.com/robots.txt");
-                task.ContinueWith(t => Console.WriteLine(t.Result));
+                task.ContinueWith(t => subject.OnNext(t.Result));
 
                 // Wait for the async call
                 Console.ReadLine();
@@ -33,6 +33,14 @@ namespace rx
             observers.Add(observer);
 
             return new Disposable(() => observers.Remove(observer));
+        }
+
+        public void OnNext(T result)
+        {
+            foreach (var observer in observers)
+            {
+                observer(result);
+            }
         }
     }
 }
