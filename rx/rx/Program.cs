@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace rx
@@ -10,10 +11,14 @@ namespace rx
     {
         private static void Main(string[] args)
         {
-            var wc = new WebClient();
-            var observable = Bobservable.FromTask(() => wc.DownloadStringTaskAsync("http://www.google.com/robots.txt"));
-            var subscription = observable.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s),
-                () => Console.WriteLine("Done"), exception => Console.WriteLine(exception)));
+            //var wc = new WebClient();
+            //var observable = Bobservable.FromTask(() => wc.DownloadStringTaskAsync("http://www.google.com/robots.txt"));
+            //var subscription = observable.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s),
+            //    () => Console.WriteLine("Done"), exception => Console.WriteLine(exception)));
+
+            var observable = Bobservable.Timer(TimeSpan.FromSeconds(1));
+            var subscription = observable.Subscribe(new AnonymousBobserver<long>(l => Console.WriteLine(l), () => Console.WriteLine("Done"),
+                e => Console.WriteLine(e)));
 
             // Wait for the async call
             Console.ReadLine();
@@ -22,8 +27,19 @@ namespace rx
         }
     }
 
-    public class Bobservable
+    public static class Bobservable
     {
+        public static IBobservable<long> Timer(TimeSpan interval)
+        {
+            return new AnonymousBobservable<long>(bobserver =>
+            {
+                var tick = 0;
+                var timer = new Timer(_ => bobserver.OnNext(++tick), null, interval, interval);
+
+                return timer;
+            });
+        }
+
         public static IBobservable<T> FromTask<T>(Func<Task<T>> taskCreator)
         {
             return new AnonymousBobservable<T>(bobserver =>
