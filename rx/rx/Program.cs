@@ -19,4 +19,14 @@ namespace rx
             Console.ReadLine();
         }
     }
+
+    public class Subject<T>
+    {
+        private readonly IList<Action<T>> observers = new List<Action<T>>();
+
+        public void Subscribe(Action<T> observer)
+        {
+            observers.Add(observer);
+        }
+    }
 }
