@@ -15,7 +15,7 @@ namespace rx
             using (subject.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s), () => Console.WriteLine("Done"))))
             {
                 var wc = new WebClient();
-                var task = wc.DownloadStringTaskAsync("http://www.google.com/robots.txt");
+                var task = wc.DownloadStringTaskAsync("http://www.googleasdasdsad.com/robots.txt");
                 task.ContinueWith(t =>
                 {
                     subject.OnNext(t.Result);
