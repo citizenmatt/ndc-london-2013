@@ -35,12 +35,9 @@ namespace rx
         }
     }
 
-    public interface ISubject<T>
+    public interface ISubject<T> : IBobserver<T>
     {
         IDisposable Subscribe(IBobserver<T> observer);
-        void OnNext(T result);
-        void OnCompleted();
-        void OnError(Exception exception);
     }
 
     public class Subject<T> : ISubject<T>
