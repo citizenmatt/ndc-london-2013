@@ -34,6 +34,14 @@ namespace rx
         }
     }
 
+    public class Bobservable
+    {
+        public static IBobservable<T> FromTask<T>()
+        {
+
+        }
+    }
+
     public interface IBobservable<T>
     {
         IDisposable Subscribe(IBobserver<T> observer);
