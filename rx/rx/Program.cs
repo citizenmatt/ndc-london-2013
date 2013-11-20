@@ -11,12 +11,16 @@ namespace rx
     {
         static void Main(string[] args)
         {
-            var wc = new WebClient();
-            var task = wc.DownloadStringTaskAsync("http://www.google.com/robots.txt");
-            task.ContinueWith(t => Console.WriteLine(t.Result));
+            var subject = new Subject<string>();
+            using (subject.Subscribe(result => Console.WriteLine(result)))
+            {
+                var wc = new WebClient();
+                var task = wc.DownloadStringTaskAsync("http://www.google.com/robots.txt");
+                task.ContinueWith(t => Console.WriteLine(t.Result));
 
-            // Wait for the async call
-            Console.ReadLine();
+                // Wait for the async call
+                Console.ReadLine();
+            }
         }
     }
 
