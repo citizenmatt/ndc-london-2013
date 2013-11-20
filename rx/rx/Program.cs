@@ -16,7 +16,7 @@ namespace rx
             //var subscription = observable.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s),
             //    () => Console.WriteLine("Done"), exception => Console.WriteLine(exception)));
 
-            var observable = Bobservable.Timer(TimeSpan.FromSeconds(1)).Select(l => l * 10).Select(l => l.ToString() + " ticks");
+            var observable = Bobservable.Timer(TimeSpan.FromSeconds(1)).Where(l => l % 2 == 0).Select(l => l * 10).Select(l => l.ToString() + " ticks");
             var subscription = observable.Subscribe(new AnonymousBobserver<string>(l => Console.WriteLine(l), () => Console.WriteLine("Done"),
                 e => Console.WriteLine(e)));
 
@@ -29,6 +29,18 @@ namespace rx
 
     public static class Bobservable
     {
+        public static IBobservable<T> Where<T>(this IBobservable<T> source, Func<T, bool> predicate)
+        {
+            return new AnonymousBobservable<T>(bobserver =>
+            {
+                return source.Subscribe(new AnonymousBobserver<T>(t =>
+                {
+                    if (predicate(t))
+                        bobserver.OnNext(t);
+                }, bobserver.OnCompleted, bobserver.OnError));
+            });
+        } 
+
         public static IBobservable<TResult> Select<TSource, TResult>(this IBobservable<TSource> source,
             Func<TSource, TResult> selector)
         {
