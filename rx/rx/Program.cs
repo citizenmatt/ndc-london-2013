@@ -8,29 +8,17 @@ namespace rx
 {
     class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
-            var subject = new Subject<string>();
-            using (subject.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s), 
-                () => Console.WriteLine("Done"),
-                e => Console.WriteLine(e))))
-            {
-                var wc = new WebClient();
-                var task = wc.DownloadStringTaskAsync("http://www.googleasdasdsad.com/robots.txt");
-                task.ContinueWith(t =>
-                {
-                    if (t.IsFaulted)
-                        subject.OnError(t.Exception);
-                    else
-                    {
-                        subject.OnNext(t.Result);
-                        subject.OnCompleted();
-                    }
-                });
+            var wc = new WebClient();
+            var observable = Bobservable.FromTask(() => wc.DownloadStringTaskAsync("http://www.google.com/robots.txt"));
+            var subscription = observable.Subscribe(new AnonymousBobserver<string>(s => Console.WriteLine(s),
+                () => Console.WriteLine("Done"), exception => Console.WriteLine(exception)));
 
-                // Wait for the async call
-                Console.ReadLine();
-            }
+            // Wait for the async call
+            Console.ReadLine();
+
+            subscription.Dispose();
         }
     }
 
@@ -50,6 +38,8 @@ namespace rx
                         bobserver.OnCompleted();
                     }
                 });
+
+                return new Disposable(() => { });
             });
         }
     }
