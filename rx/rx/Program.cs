@@ -18,9 +18,16 @@ namespace rx
 
             //var observable = Bobservable.Timer(TimeSpan.FromSeconds(1)).Where(l => l % 2 == 0).Select(l => l * 10).Select(l => l.ToString() + " ticks");
 
-            var observable = from t in Bobservable.Timer(TimeSpan.FromSeconds(1))
-                where t%2 == 0
-                select (t*10).ToString();
+            //var observable = from t in Bobservable.Timer(TimeSpan.FromSeconds(1))
+            //    where t%2 == 0
+            //    select (t*10).ToString();
+
+            var o1 = Bobservable.Timer(TimeSpan.FromMilliseconds(500)).Select(i => i*100);
+            var o2 = Bobservable.Timer(TimeSpan.FromSeconds(1)).Select(i => i*100000);
+
+            var observable = Bobservable.Merge(o1, o2).Select(i => i.ToString() + " stuff");
+
+
             var subscription = observable.Subscribe(new AnonymousBobserver<string>(l => Console.WriteLine(l), () => Console.WriteLine("Done"),
                 e => Console.WriteLine(e)));
 
@@ -33,6 +40,21 @@ namespace rx
 
     public static class Bobservable
     {
+        public static IBobservable<T> Merge<T>(IBobservable<T> t1, IBobservable<T> t2)
+        {
+            return new AnonymousBobservable<T>(bobserver =>
+            {
+                var s1 = t1.Subscribe(bobserver);
+                var s2 = t2.Subscribe(bobserver);
+
+                return new Disposable(() =>
+                {
+                    s1.Dispose();
+                    s2.Dispose();
+                });
+            });
+        }
+
         public static IBobservable<T> Where<T>(this IBobservable<T> source, Func<T, bool> predicate)
         {
             return new AnonymousBobservable<T>(bobserver =>
