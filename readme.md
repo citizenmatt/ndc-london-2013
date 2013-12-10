@@ -1,0 +1,59 @@
+## Demystifying the Reactive Extensions ##
+
+This repo contains the slides and code from my session at NDC London 2013. The talk was mostly a code demo, taking a look at not how to use Rx, but what it's doing under the covers - I find it easier to understand a technology if I know what it's doing. This is even more true if you're dealing with an abstraction.
+
+It also mirrors my own experience in using Rx - reading the initial whitepaper blew my mind, and I found it had a pretty steep learning curve. I got more proficient at using Rx by opening the dlls in Reflector/dotPeek and reading what the code was doing.
+
+But I think the biggest challenge to getting up-to-speed with Rx is due to the fact that it changes the control flow in your code. While we're used to writing code that reacts to events or asynchronous signals of some kind, we do so in an imperative manner, and Rx encourages us to use a more declarative fashion - you create a query that combines, transforms or reduces one or more streams of values, and then just let it happen.
+
+It's like the deferred nature of LINQ, but turned up to 11.
+
+So this talk was to demonstrate that actually, Rx is just code. We already get push based signals - it's just publish/subscribe, just the Observer GoF pattern. And if we create a unified API that abstracts the event source, then we can chain small pieces of code together to act as both consumer and producer and create operators that allow us to build simple operators that have a single responsibility. We can apply functional techniques, passing functions around as parameters to allow us to change the behaviour of these operators without having to rewrite the operator itself. The result is then something that's bigger than the sum of its parts.
+
+### The code ###
+
+The code is a serious of steps, each one a commit. It starts as a simple TPL app to download a file as a string and display it to the console. The `Task<string` is our event source, and the `Console.WriteLine` is our observer. But the observer is tightly coupled to the event source API - it deals with `Task<T>` directly, rather than receiving the string value that has been downloaded.
+
+The next step is to introduce an abstraction, something that can hide away the event source from the observer. This abstraction is a Subject, as defined in the [GoF Observer pattern](http://en.wikipedia.org/wiki/Observer_pattern). Over several steps, this gives us a means of subscribing, unsubscribing (via .net's `IDisposable`), pushing values in, and getting notified of the end of stream and errors.
+
+The implementation of the observer, and the subscription's `IDisposable` are handled by classes that are effectively "anonymous" - they defer their implementation to a passed in lambda. This allows us to think a bit more functionally, and use closures to capture context and easily encapsulate objects and behaviour.
+
+The Subject is then refactored to extract interfaces - `ISubject<T>` and again to extract `IObserver<T>` and `IObservable<T>`, showing that a subject is both observer and observable.
+
+It's then pointed out that subject is regarded as a bit of a code smell. It's effectively a mutable variable, allowing data to be pushed in at any call site, rather than localising and minimising access. It's also maintaining and mutating state, with its list of observers, and we want to try and minimise state. Also, the subscriber has no control over when the event source initiates its action - if it's subscribed in time, it will get the value, if not, then it will miss the value. Creating the task and subscribing are still very imperative.
+
+However, Subject is still a useful tool, especially when used internally to a class, but should not be exposed directly. It should only ever be exposed as `IObservable<T>`, allowing subscription, but not allowing values to be pushed in.
+
+So the next steps are intended to remove the Subject from the API. The task creation and handling are extracted into methods (not shown in this code), and `CreateTask` is passed into a new static method that will return an `IObservable<T>`. A new anonymous observable class is created, and the `IObservable<T>.Subscribe` method is delegated to a lambda that is passed in.
+
+The `FromTask` implementation calls the passed `CreateTask` method when someone subscribes, and uses the `HandleTask` method to wire up the continuation and pass values into the subscriber's `IObservable<T>` implementation. The task helper methods are inlined, and the `IDisposable` of the subscription sets a flag that is checked before pushing a value to the observer. Finally, the method is moved to become a static creation method on a static `Observable` class.
+
+At this point, it is important to note that the semantics of the code has changed. The subject broadcasts the result of the download to any and all observers that are subscribed when the value is available. Also, the file is downloaded even if no-one is subscribed. The observable creation method changes this. Nothing happens until someone subscribes. It's only at that point that the task is created, the continuation registered and the file downloads. If multiple observers subscribe, the task is created multiple times and the file is download multiple times. Rx provides operators that will allow for multiple subscribers to share a common source (`Publish`, `Replay`, etc.) This also gives us a nice separation of concerns - the creation method is just focused on creating the task, and there's a separate operator to broadcast the result.
+
+Now we have the building blocks for creation methods, we introduce a new method - `Observable.Timer`. This follows the same pattern - we need to return an `IObservable<int>` (because there is no `T`, we need to return something. We'll return a count of ticks) so create an instance of our anonymous observable class. When someone subscribes, we get passed an `IObserver<T>`, which we need to pass values into. To get values, we need to create a timer, and on every tick, we increment a count and push it into the `IObserver<T>.OnNext`. We need to return an `IDisposable` for when we unsubscribe. This needs to stop the timer, which we can do by calling the timer's `IDisposable.Dispose` method. In fact, we can simply return the timer as an `IDisposable` to get disposed directly.
+
+Note that we have now created an infinite sequence - it doesn't end until you unsubscribe. It never calls `IObserver<T>.OnCompleted`. And we have also changed the event source without having to change the subscription - we've decoupled the event source from the observer.
+
+Except we had to change the subscription a little, by changing the type from `IObserver<string>` to `IObserver<int>`. It would be nice to be able to not have to do that. If we think back to LINQ, we already know how to convert a sequence from one type to another - we use the Select operator.
+
+So we'll introduce a Select static method. It's going to take in an `IObserver<int>` and return an `IObserver<string>`. It also needs to take in a selector func that will convert from an `int` to a `string`. That means the signature is:
+
+`public static IObservable<string> Select(IObservable<int> source, Func<int, string> selector)`
+
+We can follow the types for implementing this. Return an anonymous observable of string. When someone selects, we have an observer. We need to push values into it, but we have no way of getting values, unless we subscribe to the source observable (of `int`, from the timer). We then need to pass in an `IObserver<int>` which we don't have, so create it. The implementation of `OnCompleted` and `OnError` is trivial - we can just pass the values along to the observer we were given when someone subscribed to the Select. The `OnNext` is slightly more tricky - we can't call the Select's observer's `OnNext` because it's the wrong type. We need to convert between `int` and `string`. Fortunately, we can call `selector` to do that. Finally, we need to return an `IDisposable` to represent the subscription. We have one already - the subscription to the `source` observable. We can return this directly.
+
+Two interesting things here - we've effectively wrapped the observer passed to the Select method. This is essentially the Decorator pattern. Secondly, if we look at the control flow, the call to Select has created a new object, but nothing more. The control flow returns to the caller immediately. When someone subscribes to the select's observable, we subscribe upstream, passing in our "decorating" observer. By subscribing upstream, we start the timer, and immediately return. Control flow again returns to the caller. Nothing else happens. It's only when a timer tick occurs at some point in the future does a value get pushed into the "decorating" observer, which calls `selector` and pushes the value to the observer in our main program, which outputs to the screen. This repeats until we hit enter and the subscription is disposed. The `Dispose` method is called on the subscription returned from `Select`, which is actually the subscription to the `Timer` call, which is actually the timer itself. So disposing the subscription to the observable returned by select actually directly disposes the timer. This is worth debugging and stepping through.
+
+We can do a similar thing with Where. Implement a static method that takes in an `IObservable<T>` and returns an `IObservable<T>`. It also takes a predicate that takes in a `T` and returns a `bool`. When `Where` is called, it creates a new observable and returns directly. When someone subscribes, we subscribe upstream and pass in a new observer, that again wraps or decorates the observer we were already given. `OnNext` then calls the predicate. If it returns true, we pass the value to the existing observer. If it doesn't, the value is just dropped. Unsubscribing disposes the subscription from the source observable. 
+
+Finally, we take a look at a naive implementation of Merge, which will combine two streams that we'll pass in as parameters. Again, we need to return an `IObservable<T>` so we create an instance of our anonymous class. When someone subscribes, we subscribe to both upstream sequences and pass observer directly through - we don't need to convert the values, so don't need a decorator (but see below). Unsubscribing is slightly more complex here - we need to unsubscribe from both streams, so we create an anonymous disposable and use a closure to capture scope and call `Dispose` on the upstream subscriptions
+
+### About the Merge implementation ###
+
+It's not called out in the code or the slides, but the implementation of `Merge` "cheats". Or to put it less euphemistically, it's broken. The implementation doesn't handle when one stream finishes and the other doesn't, or one throws an exception. The `OnCompleted` or `OnError` is propagated to the passed in observer, but doesn't stop the other stream.
+
+This was called out in the session. The shown naive solution is intended to demonstrate a) the simplest way to combine streams, without getting bogged down making sure the semantics are correct and b) show that sometimes, unsubscribing is a little more involved than. The point was then made that implementing correct semantics involves wrapping the passed in observer, again using the Decorator pattern.
+
+### Is this the live coding output? ###
+
+This isn't the code that was used on the day, but is from a practice run. It is slightly different to the code shown on the day, but the changes don't have a significant impact on either the code or the flow, but they helped to smooth various things out - certain refactorings and reworkings became easier to explain - the changes were more frequently driven from the code, rather than introducing code and then wiring it up.
